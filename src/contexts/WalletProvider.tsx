@@ -114,7 +114,7 @@ export function WalletProvider({
       console.error('Failed to connect wallet:', error);
       throw error;
     }
-  }, [server]);
+  }, [server, network]);
 
   const disconnect = useCallback(async () => {
     try {
@@ -124,12 +124,7 @@ export function WalletProvider({
       setWalletName(undefined);
       setBalances([]);
 
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('stellar_wallet_connected');
-        localStorage.removeItem('stellar_wallet_id');
-        localStorage.removeItem('stellar_wallet_address');
-        localStorage.removeItem('stellar_wallet_name');
-      }
+      clearPersistedWalletState();
     } catch (error) {
       console.error('Failed to disconnect wallet:', error);
     }
@@ -209,20 +204,17 @@ export function WalletProvider({
     const autoReconnect = async () => {
       if (typeof window === 'undefined') return;
 
-      const wasConnected = localStorage.getItem('stellar_wallet_connected');
-      const savedWalletId = localStorage.getItem('stellar_wallet_id');
-      const savedAddress = localStorage.getItem('stellar_wallet_address');
-      const savedName = localStorage.getItem('stellar_wallet_name');
+      const saved = readPersistedWalletState();
 
-      if (wasConnected === 'true' && savedWalletId && savedAddress) {
+      if (saved) {
         try {
           const currentKit = kit();
-          currentKit.setWallet(savedWalletId);
+          currentKit.setWallet(saved.providerId);
           const { address } = await currentKit.getAddress();
 
-          if (address === savedAddress) {
+          if (address === saved.publicKey) {
             setPublicKey(address);
-            setWalletName(savedName || 'Unknown');
+            setWalletName(saved.displayName);
             setConnected(true);
 
             try {
@@ -239,12 +231,7 @@ export function WalletProvider({
           }
         } catch {
           console.log('Auto-reconnect failed');
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('stellar_wallet_connected');
-            localStorage.removeItem('stellar_wallet_id');
-            localStorage.removeItem('stellar_wallet_address');
-            localStorage.removeItem('stellar_wallet_name');
-          }
+          clearPersistedWalletState();
         }
       }
 
